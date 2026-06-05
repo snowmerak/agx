@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -143,9 +144,12 @@ func runPrompt(cfg *Config, prompt string) {
 	cmd := exec.Command(agyPath, "--conversation="+conversationID, "-p", prompt)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = io.Discard
-	cmd.Stderr = os.Stderr
+	
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Run(); err != nil {
+		fmt.Fprint(os.Stderr, stderrBuf.String())
 		fmt.Fprintf(os.Stderr, "Error running agy: %v\n", err)
 		os.Exit(1)
 	}
