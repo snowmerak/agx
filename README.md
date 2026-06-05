@@ -7,7 +7,9 @@
 ## Features
 
 - **Directory-Bound Conversations**: Binds a single active conversation to your current working directory.
+- **Automatic Initialization**: Runs programmatic initialization (`--auto`) in the background automatically if `agx` or `agx "prompt"` is executed in an uninitialized directory.
 - **Explicit Initialization (`agx init`)**: Start a conversation once, interactively execute a system prompt, and automatically capture the generated conversation ID.
+- **Programmatic Initialization (`agx init --auto`)**: Initialize a conversation mapping for the current directory headlessly in the background.
 - **Seamless Resume (`agx`)**: Re-enter the interactive terminal session mapped to the current directory.
 - **Fast Non-Interactive Execution (`agx "prompt"`)**: Run a single prompt directly against the mapped session and output the result.
 - **Mapping Admin**: Easily inspect maps with `agx list` and clean them up with `agx remove <query>`.
@@ -39,11 +41,29 @@ The system prompt to initialize conversations can be configured in this JSON fil
 ## Usage
 
 ### 1. Initialize a Directory
-Before using `agx` in a new workspace, you must initialize it:
+
+#### Interactive Initialization
+Before using `agx` in a new workspace, you can manually initialize it:
 ```bash
 agx init
 ```
 This launches `agy` with the pre-configured system prompt. Interact, get the response, and exit using `Control+D`. `agx` will automatically detect the conversation ID and map it to this directory.
+
+#### Programmatic Initialization
+To initialize headlessly without opening the interactive session:
+```bash
+agx init --auto
+```
+
+#### Automatic Initialization (Recommended)
+You do not need to run `init` manually. If you execute a prompt or start the interactive session in an unmapped directory, `agx` will automatically initialize it in the background using your configured system prompt:
+```bash
+# In a new directory, this automatically initializes the session first:
+agx "explain how this code works"
+
+# Or start the interactive session directly:
+agx
+```
 
 ### 2. Resume Interactive Session
 To return to the active interactive session for the current directory:
