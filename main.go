@@ -128,7 +128,7 @@ func runPrompt(cfg *Config, prompt string) {
 		os.Exit(1)
 	}
 
-	fmt.Println("[AGX DEBUG] runPrompt start, conversation:", conversationID)
+
 
 	transcriptPath, err := getTranscriptPath(conversationID)
 	var previousText string
