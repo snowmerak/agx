@@ -128,6 +128,8 @@ func runPrompt(cfg *Config, prompt string) {
 		os.Exit(1)
 	}
 
+	fmt.Println("[AGX DEBUG] runPrompt start, conversation:", conversationID)
+
 	transcriptPath, err := getTranscriptPath(conversationID)
 	var previousText string
 	if err == nil {
@@ -147,6 +149,8 @@ func runPrompt(cfg *Config, prompt string) {
 	
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
+
+	setSysProcAttr(cmd)
 
 	if err := cmd.Run(); err != nil {
 		fmt.Fprint(os.Stderr, stderrBuf.String())
