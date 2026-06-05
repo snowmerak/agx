@@ -180,12 +180,19 @@ func countTranscriptLines(path string) (int, error) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	reader := bufio.NewReader(file)
 	count := 0
-	for scanner.Scan() {
+	for {
+		_, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, err
+		}
 		count++
 	}
-	return count, scanner.Err()
+	return count, nil
 }
 
 func printNewResponses(path string, startLine int) error {
@@ -197,12 +204,16 @@ func printNewResponses(path string, startLine int) error {
 
 	// First pass to count total lines in the file
 	totalLines := 0
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
+	reader := bufio.NewReader(file)
+	for {
+		_, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
 		totalLines++
-	}
-	if err := scanner.Err(); err != nil {
-		return err
 	}
 
 	// Reset file offset
@@ -215,22 +226,37 @@ func printNewResponses(path string, startLine int) error {
 		startLine = 0
 	}
 
-	scanner = bufio.NewScanner(file)
+	reader = bufio.NewReader(file)
 	lineNum := 0
-	for scanner.Scan() {
+	for {
+		lineBytes, err := reader.ReadBytes('\n')
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if len(lineBytes) == 0 && err == io.EOF {
+			break
+		}
+
 		lineNum++
 		if lineNum <= startLine {
+			if err == io.EOF {
+				break
+			}
 			continue
 		}
+
 		var line TranscriptLine
-		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
-			continue
+		if err := json.Unmarshal(lineBytes, &line); err == nil {
+			if line.Source == "MODEL" && line.Content != "" {
+				fmt.Println(line.Content)
+			}
 		}
-		if line.Source == "MODEL" && line.Content != "" {
-			fmt.Println(line.Content)
+
+		if err == io.EOF {
+			break
 		}
 	}
-	return scanner.Err()
+	return nil
 }
 
 func runInteractive(cfg *Config) {
