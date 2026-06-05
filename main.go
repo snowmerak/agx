@@ -129,8 +129,8 @@ func runPrompt(cfg *Config, prompt string) {
 
 	conversationID, exists := cfg.Mappings[canonicalDir]
 	if !exists {
-		fmt.Fprintln(os.Stderr, "No conversation mapping found for this directory. Please initialize it by running: agx init")
-		os.Exit(1)
+		initializeConversation(cfg, canonicalDir, true)
+		conversationID = cfg.Mappings[canonicalDir]
 	}
 
 
@@ -242,8 +242,8 @@ func runInteractive(cfg *Config) {
 
 	conversationID, exists := cfg.Mappings[canonicalDir]
 	if !exists {
-		fmt.Fprintln(os.Stderr, "No conversation mapping found for this directory. Please initialize it by running: agx init")
-		os.Exit(1)
+		initializeConversation(cfg, canonicalDir, true)
+		conversationID = cfg.Mappings[canonicalDir]
 	}
 
 	// Resume existing conversation interactively
