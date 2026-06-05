@@ -24,7 +24,11 @@ func main() {
 		subcommand := os.Args[1]
 		switch subcommand {
 		case "init":
-			runInit(cfg)
+			auto := false
+			if len(os.Args) >= 3 && os.Args[2] == "--auto" {
+				auto = true
+			}
+			runInit(cfg, auto)
 			return
 		case "list":
 			runList(cfg)
@@ -57,7 +61,8 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  agx                 Start or resume the interactive agy session in the current directory")
 	fmt.Println("  agx \"prompt\"        Run a single prompt non-interactively using the current directory's conversation")
-	fmt.Println("  agx init            Initialize a new conversation mapping for the current directory")
+	fmt.Println("  agx init            Initialize a new conversation mapping for the current directory interactively")
+	fmt.Println("  agx init --auto     Initialize a new conversation mapping for the current directory programmatically")
 	fmt.Println("  agx list            List all active directory-to-conversation mapping pairs")
 	fmt.Println("  agx remove <query>  Remove a mapping pair by directory path or conversation ID")
 	fmt.Println("  agx help            Show this help message")
@@ -260,7 +265,7 @@ func runInteractive(cfg *Config) {
 	}
 }
 
-func runInit(cfg *Config) {
+func runInit(cfg *Config, auto bool) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error getting current working directory: %v\n", err)
@@ -279,7 +284,7 @@ func runInit(cfg *Config) {
 		os.Exit(0)
 	}
 
-	initializeConversation(cfg, canonicalDir)
+	initializeConversation(cfg, canonicalDir, auto)
 }
 
 func getBrainDir() (string, error) {
@@ -334,7 +339,7 @@ func findNewConversationID(before, after map[string]os.FileInfo) string {
 	return newestName
 }
 
-func initializeConversation(cfg *Config, canonicalDir string) {
+func initializeConversation(cfg *Config, canonicalDir string, auto bool) {
 	brainDir, err := getBrainDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error determining brain directory: %v\n", err)
@@ -354,14 +359,28 @@ func initializeConversation(cfg *Config, canonicalDir string) {
 		os.Exit(1)
 	}
 
-	// Run initial session interactively with the pre-configured system prompt
-	cmd := exec.Command(agyPath, "-i", cfg.SystemPrompt)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var cmd *exec.Cmd
+	var stderrBuf bytes.Buffer
+
+	if auto {
+		// Run initial session programmatically using system prompt
+		cmd = exec.Command(agyPath, "-p", cfg.SystemPrompt)
+		cmd.Stdout = io.Discard
+		cmd.Stderr = &stderrBuf
+		setSysProcAttr(cmd)
+	} else {
+		// Run initial session interactively with the pre-configured system prompt
+		cmd = exec.Command(agyPath, "-i", cfg.SystemPrompt)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 
 	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running agy interactive initialization: %v\n", err)
+		if auto {
+			fmt.Fprint(os.Stderr, stderrBuf.String())
+		}
+		fmt.Fprintf(os.Stderr, "Error running agy initialization: %v\n", err)
 		os.Exit(1)
 	}
 
