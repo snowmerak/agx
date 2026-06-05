@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -124,6 +127,12 @@ func runPrompt(cfg *Config, prompt string) {
 		os.Exit(1)
 	}
 
+	transcriptPath, err := getTranscriptPath(conversationID)
+	var startLine int
+	if err == nil {
+		startLine, _ = countTranscriptLines(transcriptPath)
+	}
+
 	// Run the single prompt non-interactively using the mapped conversation ID
 	agyPath, err := exec.LookPath("agy")
 	if err != nil {
@@ -133,13 +142,95 @@ func runPrompt(cfg *Config, prompt string) {
 
 	cmd := exec.Command(agyPath, "--conversation="+conversationID, "-p", prompt)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running agy: %v\n", err)
 		os.Exit(1)
 	}
+
+	if err := printNewResponses(transcriptPath, startLine); err != nil {
+		_ = printNewResponses(transcriptPath, 0)
+	}
+}
+
+type TranscriptLine struct {
+	StepIndex int    `json:"step_index"`
+	Source    string `json:"source"`
+	Type      string `json:"type"`
+	Content   string `json:"content"`
+}
+
+func getTranscriptPath(conversationID string) (string, error) {
+	brainDir, err := getBrainDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(brainDir, conversationID, ".system_generated", "logs", "transcript.jsonl"), nil
+}
+
+func countTranscriptLines(path string) (int, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	count := 0
+	for scanner.Scan() {
+		count++
+	}
+	return count, scanner.Err()
+}
+
+func printNewResponses(path string, startLine int) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// First pass to count total lines in the file
+	totalLines := 0
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		totalLines++
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Reset file offset
+	if _, err := file.Seek(0, 0); err != nil {
+		return err
+	}
+
+	// If the file has been recreated/truncated and has fewer lines, reset startLine to 0
+	if totalLines < startLine {
+		startLine = 0
+	}
+
+	scanner = bufio.NewScanner(file)
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		if lineNum <= startLine {
+			continue
+		}
+		var line TranscriptLine
+		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
+			continue
+		}
+		if line.Source == "MODEL" && line.Content != "" {
+			fmt.Println(line.Content)
+		}
+	}
+	return scanner.Err()
 }
 
 func runInteractive(cfg *Config) {
