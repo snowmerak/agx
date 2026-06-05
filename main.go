@@ -136,10 +136,6 @@ func runPrompt(cfg *Config, prompt string) {
 
 
 	transcriptPath, err := getTranscriptPath(conversationID)
-	var previousText string
-	if err == nil {
-		previousText, _ = getAssistantText(transcriptPath)
-	}
 
 	// Run the single prompt non-interactively using the mapped conversation ID
 	agyPath, err := exec.LookPath("agy")
@@ -169,12 +165,7 @@ func runPrompt(cfg *Config, prompt string) {
 		os.Exit(1)
 	}
 
-	if previousText != "" && strings.HasPrefix(currentText, previousText) {
-		newText := strings.TrimPrefix(currentText, previousText)
-		fmt.Print(newText)
-	} else {
-		fmt.Print(currentText)
-	}
+	fmt.Print(currentText)
 }
 
 type TranscriptLine struct {
@@ -203,7 +194,7 @@ func getAssistantText(path string) (string, error) {
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
-	var sb strings.Builder
+	var lines []TranscriptLine
 	for {
 		lineBytes, err := reader.ReadBytes('\n')
 		if err != nil && err != io.EOF {
@@ -215,15 +206,34 @@ func getAssistantText(path string) (string, error) {
 
 		var line TranscriptLine
 		if err := json.Unmarshal(lineBytes, &line); err == nil {
-			if line.Source == "MODEL" && line.Content != "" {
-				sb.WriteString(line.Content)
-			}
+			lines = append(lines, line)
 		}
 
 		if err == io.EOF {
 			break
 		}
 	}
+
+	lastUserIdx := -1
+	for i := len(lines) - 1; i >= 0; i-- {
+		if lines[i].Source == "USER_EXPLICIT" {
+			lastUserIdx = i
+			break
+		}
+	}
+
+	var sb strings.Builder
+	startIdx := lastUserIdx + 1
+	if lastUserIdx == -1 {
+		startIdx = 0
+	}
+
+	for i := startIdx; i < len(lines); i++ {
+		if lines[i].Source == "MODEL" && lines[i].Content != "" {
+			sb.WriteString(lines[i].Content)
+		}
+	}
+
 	return sb.String(), nil
 }
 
